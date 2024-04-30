@@ -7,8 +7,6 @@ This script parses the Qubes global clipboard (which is encoded via UTF-8). It's
 
 The script is a very small security risk, but this doesn't mean it's not a risk. There's a non-zero chance that it gets exploited to compromise dom0
 
-You've been warned
-
 ### How to copy files to dom0
 
 The Qubes official documentation has information about copying files to dom0: https://www.qubes-os.org/doc/how-to-copy-from-dom0/#copying-to-dom0
