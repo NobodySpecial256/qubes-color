@@ -100,7 +100,7 @@ def main():
 	dispatcher = qubesadmin.events.EventsDispatcher(qubes_app)
 	gtk_app = NotificationApp(wm, qubes_app, dispatcher)
 	clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-	text = str(clipboard.wait_for_text()) # Save dom0's old clipboard
+	text = clipboard.wait_for_text() # Save dom0's old clipboard
 
 	with open(DATA, 'r', encoding='utf-8') as contents:
 		global_text = contents.read()
