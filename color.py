@@ -65,9 +65,18 @@ def colorify_trans3(char, ix, length):
 def colorify_trans5(char, ix, length):
 	colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"]
 	return ColoredChar(colors[ix * len(colors) // length], char)
+def colorify_trans3_loop(char, ix, length):
+	colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF"]
+	return ColoredChar(colors[ix % len(colors)], char)
+def colorify_trans5_loop(char, ix, length):
+	colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8"]
+	return ColoredChar(colors[ix % len(colors)], char)
 def colorify_nonbinary(char, ix, length):
 	colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
 	return ColoredChar(colors[ix * len(colors) // length], char)
+def colorify_nb_loop(char, ix, length):
+	colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
+	return ColoredChar(colors[ix % len(colors)], char)
 def colorify_rgb(char, ix, length, hex):
 	return ColoredChar(hex, char)
 
@@ -78,7 +87,10 @@ colors = {
 		"trans3": colorify_trans3,
 		"trans5": colorify_trans5,
 		"nonbinary": colorify_nonbinary,
-		"nb": colorify_nonbinary
+		"nb": colorify_nonbinary,
+		"trans3-loop": colorify_trans3_loop,
+		"trans5-loop": colorify_trans5_loop,
+		"nb-loop": colorify_nb_loop
 }
 
 colorify = colors["default"]
@@ -100,7 +112,7 @@ def main():
 	dispatcher = qubesadmin.events.EventsDispatcher(qubes_app)
 	gtk_app = NotificationApp(wm, qubes_app, dispatcher)
 	clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-	text = clipboard.wait_for_text() # Save dom0's old clipboard
+	text = clipboard.wait_for_text()
 
 	with open(DATA, 'r', encoding='utf-8') as contents:
 		global_text = contents.read()
@@ -114,7 +126,7 @@ def main():
 	gtk_app.copy_dom0_clipboard()
 
 	if text != None:
-		clipboard.set_text(text, -1) # Revert dom0's clipboard
+		clipboard.set_text(text, -1)
 
 if __name__ == "__main__":
 	main()
