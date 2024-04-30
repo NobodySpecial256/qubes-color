@@ -126,8 +126,8 @@ def main():
 		clipboard.set_text(str(colored), -1)
 		gtk_app.copy_dom0_clipboard()
 
-	if text != None:
-		clipboard.set_text(text, -1)
+		if text != None:
+			clipboard.set_text(text, -1)
 
 if __name__ == "__main__":
 	main()
