@@ -84,6 +84,8 @@ colors = {
 colorify = colors["default"]
 
 def main():
+	global colorify
+
 	color = ""
 	if len(argv) >= 2:
 		color = argv[1]
