@@ -83,32 +83,36 @@ colors = {
 
 colorify = colors["default"]
 
-color = ""
-if len(argv) >= 2:
-	color = argv[1]
+def main():
+	color = ""
+	if len(argv) >= 2:
+		color = argv[1]
 
-if color not in ["default", ""] and color[0] not in ["#"]:
-	colorify = colors[color]
-if len(color) > 0 and color[0] in ["#"]:
-	colorify = lambda char, ix, length: colorify_rgb(char, ix, length, color)
+	if color not in ["default", ""] and color[0] not in ["#"]:
+		colorify = colors[color]
+	if len(color) > 0 and color[0] in ["#"]:
+		colorify = lambda char, ix, length: colorify_rgb(char, ix, length, color)
 
-wm = pyinotify.WatchManager()
-qubes_app = qubesadmin.Qubes()
-dispatcher = qubesadmin.events.EventsDispatcher(qubes_app)
-gtk_app = NotificationApp(wm, qubes_app, dispatcher)
-clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-text = str(clipboard.wait_for_text()) # Save dom0's old clipboard
+	wm = pyinotify.WatchManager()
+	qubes_app = qubesadmin.Qubes()
+	dispatcher = qubesadmin.events.EventsDispatcher(qubes_app)
+	gtk_app = NotificationApp(wm, qubes_app, dispatcher)
+	clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+	text = str(clipboard.wait_for_text()) # Save dom0's old clipboard
 
-with open(DATA, 'r', encoding='utf-8') as contents:
-	global_text = contents.read()
+	with open(DATA, 'r', encoding='utf-8') as contents:
+		global_text = contents.read()
 
-	colored = ColoredString()
-	global_text_len = len(global_text)
-	for ix, char in enumerate(global_text):
-		colored += colorify(char, ix, global_text_len)
+		colored = ColoredString()
+		global_text_len = len(global_text)
+		for ix, char in enumerate(global_text):
+			colored += colorify(char, ix, global_text_len)
 
-clipboard.set_text(str(colored), -1)
-gtk_app.copy_dom0_clipboard()
+	clipboard.set_text(str(colored), -1)
+	gtk_app.copy_dom0_clipboard()
 
-if text != None:
-	clipboard.set_text(text, -1) # Revert dom0's clipboard
+	if text != None:
+		clipboard.set_text(text, -1) # Revert dom0's clipboard
+
+if __name__ == "__main__":
+	main()
