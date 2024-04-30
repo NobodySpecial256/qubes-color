@@ -5,6 +5,8 @@ Colorify text in Qubes' global clipboard
 
 This script parses the Qubes global clipboard (which is encoded via UTF-8). It's possible for the Python environment to be buggy, and as a result, the security of dom0 cannot be completely guaranteed when using this script, if the clipboard is maliciously modified
 
+The script is a very small security risk, but this doesn't mean it's not a risk. There's a non-zero chance that it gets exploited to compromise dom0
+
 You've been warned
 
 ### How to copy files to dom0
