@@ -102,10 +102,11 @@ def main():
 	if len(argv) >= 2:
 		color = argv[1]
 
-	if color not in ["default", ""] and color[0] not in ["#"]:
-		colorify = colors[color]
-	if len(color) > 0 and color[0] in ["#"]:
-		colorify = lambda char, ix, length: colorify_rgb(char, ix, length, color)
+	if color not in ["default", ""]:
+		if color[0] in ["#"]:
+			colorify = lambda char, ix, length: colorify_rgb(char, ix, length, color)
+		else:
+			colorify = colors[color]
 
 	wm = pyinotify.WatchManager()
 	qubes_app = qubesadmin.Qubes()
