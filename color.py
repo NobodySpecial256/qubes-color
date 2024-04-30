@@ -123,8 +123,8 @@ def main():
 		for ix, char in enumerate(global_text):
 			colored += colorify(char, ix, global_text_len)
 
-	clipboard.set_text(str(colored), -1)
-	gtk_app.copy_dom0_clipboard()
+		clipboard.set_text(str(colored), -1)
+		gtk_app.copy_dom0_clipboard()
 
 	if text != None:
 		clipboard.set_text(text, -1)
