@@ -1,11 +1,11 @@
 # qubes-color
 Colorify text in Qubes' global clipboard
 
-#### Warning:
+#### Setup
 
-This script parses the Qubes global clipboard (which is encoded via UTF-8). It's possible for the Python environment to be buggy, and as a result, the security of dom0 cannot be completely guaranteed when using this script, if the clipboard is maliciously modified
+Before using this script, you need to create a named disposable `sys-colorify`, which will do the actual processing. This way, dom0 is entirely isolated from any potentially-malicious inputs
 
-The script is a very small security risk, but this doesn't mean it's not a risk. There's a non-zero chance that it gets exploited to compromise dom0
+`sys-colorify` can be based on any template, including minimal templates. It is recommended to deny network access, since it really has no need to connect to the internet
 
 ### How to copy files to dom0
 

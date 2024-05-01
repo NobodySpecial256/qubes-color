@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
 
-#import re # For using RegEx parsing (may increase attack surface if the RegEx implementation has bugs)
-
 from sys import argv, stderr
-# Refer to /usr/lib/python3.11/site-packages/qui/clipboard.py
-from qui.clipboard import pyinotify, qubesadmin, NotificationApp, DATA, Gtk, Gdk
 
-from html import escape
+# Modules which increase attack surface are only imported if running in a colorification agent
+if len(argv) > 2 and argv[1] == "--dvm-agent":
+	import re
+	from html import escape
+
+from subprocess import run # For spawning disposables
+from string import printable # For sanitizing strings
 
 TAG_START = lambda color: "<span data-mx-color='%s' style='color: %s;'>" %(color, color)
 TAG_END = lambda: "</span>"
 
-if len(argv) not in [1, 2]:
-	print("Usage: %s <color>" %(argv[0]), file=stderr)
-	raise SystemExit
+# The name of the VM to use for processing. This should be a disposable VM, but technically it can be any VM you want, except dom0
+# It is not recommended to do processing in a trusted VM, since the global clipboard is an untrusted input
+AGENT_QUBE = "sys-colorify"
+
+def clean_str(string):
+	ret = ""
+	for char in string:
+		if char in printable:
+			ret += char
+	return ret
 
 re_defined = True
 try: re
@@ -131,7 +140,7 @@ colors = {
 
 colorify = colors["default"]
 
-def main():
+def dvm_agent():
 	global colorify
 
 	color = ""
@@ -144,13 +153,6 @@ def main():
 		else:
 			colorify = colors[color]
 
-	wm = pyinotify.WatchManager()
-	qubes_app = qubesadmin.Qubes()
-	dispatcher = qubesadmin.events.EventsDispatcher(qubes_app)
-	gtk_app = NotificationApp(wm, qubes_app, dispatcher)
-	clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-	text = clipboard.wait_for_text()
-
 	with open(DATA, 'r', encoding='utf-8') as contents:
 		global_text = contents.read()
 		global_text_length = len(global_text)
@@ -159,11 +161,49 @@ def main():
 		for ix, char in enumerate(global_text):
 			colored += colorify(char, ix, global_text_length, global_text)
 
-		clipboard.set_text(str(colored), -1)
-		gtk_app.copy_dom0_clipboard()
+		return colored
 
-		if text != None:
-			clipboard.set_text(text, -1)
+def main():
+	global argv
+
+	if len(argv) > 2 and argv[1] == "--dvm-agent": # Tells the script that it's running in a disposable
+		global DATA
+		DATA = argv[2]
+		argv = argv[2:]
+		print(dvm_agent(), end="")
+		return
+	elif len(argv) not in [1, 2]:
+		print("Usage: %s <color>" %(argv[0]), file=stderr)
+		raise SystemExit
+
+	if AGENT_QUBE == "dom0":
+		raise ValueError("For security reasons, dom0 cannot be used as a colorification agent")
+
+	# Refer to /usr/lib/python3.11/site-packages/qui/clipboard.py
+	from qui.clipboard import pyinotify, qubesadmin, NotificationApp, DATA, Gtk, Gdk
+
+	wm = pyinotify.WatchManager()
+	qubes_app = qubesadmin.Qubes()
+	dispatcher = qubesadmin.events.EventsDispatcher(qubes_app)
+	gtk_app = NotificationApp(wm, qubes_app, dispatcher)
+	clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+	text = clipboard.wait_for_text()
+
+	with open(argv[0], 'rb') as prgm:
+		prgm_bin = prgm.read()
+		with open(DATA, 'rb') as contents:
+			global_bin = contents.read()
+
+			run(["/usr/bin/qvm-run", "-u", "root", "--pass-io", AGENT_QUBE, "tee", argv[0]], input=prgm_bin, capture_output=True)
+			run(["/usr/bin/qvm-run", "-u", "root", "--pass-io", AGENT_QUBE, "tee", DATA], input=global_bin, capture_output=True)
+
+			colored = clean_str(run(["/usr/bin/qvm-run", "--pass-io", AGENT_QUBE, "python3", argv[0], "--dvm-agent", DATA] + argv[1:], capture_output=True).stdout.decode(encoding="ascii", errors="replace"))
+
+			clipboard.set_text(colored, -1)
+			gtk_app.copy_dom0_clipboard()
+
+			if text != None:
+				clipboard.set_text(text, -1)
 
 if __name__ == "__main__":
 	main()
