@@ -52,7 +52,7 @@ def index_words(string):
 class ColoredChar(object):
 	def __init__(self, color, char):
 		self.char = char
-		self.html = escape(char)
+		self.html = escape(char).encode("ascii", "xmlcharrefreplace").decode("ascii")
 		self.color = color
 	def __str__(self):
 		return self.html
