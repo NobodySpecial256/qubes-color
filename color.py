@@ -2,16 +2,15 @@
 
 from sys import argv, stderr
 
-# Modules which increase attack surface are only imported if running in a colorification agent
-if len(argv) > 2 and argv[1] == "--dvm-agent":
-	import re
-	from html import escape
-
 from subprocess import run # For spawning disposables
 from string import printable # For sanitizing strings
 
-TAG_START = lambda color: "<span data-mx-color='%s' style='color: %s;'>" %(color, color)
-TAG_END = lambda: "</span>"
+# Create our own Exception for security-related errors
+class SecurityException(Exception):
+	pass
+
+class SecurityContext:
+	is_dvm_agent = False
 
 # The name of the VM to use for processing. This should be a disposable VM, but technically it can be any VM you want, except dom0
 # It is not recommended to do processing in a trusted VM, since the global clipboard is an untrusted input
@@ -24,124 +23,126 @@ def clean_str(string):
 			ret += char
 	return ret
 
-re_defined = True
-try: re
-except NameError:
-	re_defined = False
+def format_exc(e):
+	return "%s: %s" %(type(e).__name__, e)
+def print_exc(e):
+	print(format_exc(e), file=stderr)
 
-# `re` is optional, but some colorifiers may want to use RegEx operations
-if re_defined: # re_defined keeps track of whether RegEx operations are available
+def dvm_agent():
+	# Implement all parsing logic here to avoid accidentally calling potentially-vulnerable parsing code
+	
+	# If we're not running as a DVM agent, abort immediately
+	if not SecurityContext.is_dvm_agent:
+		raise SecurityException("Not running as DVM agent, aborting.")
+	
+	# Modules which increase attack surface are only imported if running in a DVM agent
+	import re
+	from html import escape
+	
+	TAG_START = lambda color: "<span data-mx-color='%s' style='color: %s;'>" %(color, color)
+	TAG_END = lambda: "</span>"
+
 	whitespace = r'\s+'
 	def count_words(string):
 		return len(re.findall(whitespace, " " + string))
-else:
-	def RegExError():
-		raise Exception("RegEx processing disabled")
 
-	# Reimplementation without RegEx operations
-	def count_words(string):
-		return len((string + ".").split())
-
-def index_words(string):
-	words = count_words(string)
-	if words > 0:
-		return words - 1
-	else:
-		return 0
-
-class ColoredChar(object):
-	def __init__(self, color, char):
-		self.char = char
-		self.html = escape(char).encode("ascii", "xmlcharrefreplace").decode("ascii")
-		self.color = color
-	def __str__(self):
-		return self.html
-
-class ColoredString(object):
-	def __init__(self):
-		self.chars = []
-	def __add__(self, char):
-		if isinstance(char, ColoredChar):
-			self.chars += [char]
-		elif isinstance(char, (list, tuple)):
-			for c in char:
-				self.__add__(c)
+	def index_words(string):
+		words = count_words(string)
+		if words > 0:
+			return words - 1
 		else:
-			raise TypeError("char must be of type ColoredChar")
+			return 0
 
-		return self
-	def __str__(self):
-		if not self.chars:
-			return ""
+	class ColoredChar(object):
+		def __init__(self, color, char):
+			self.char = char
+			self.html = escape(char).encode("ascii", "xmlcharrefreplace").decode("ascii")
+			self.color = color
+		def __str__(self):
+			return self.html
 
-		ret = ""
-		if self.chars[0].color != None:
-			ret += TAG_START(self.chars[0].color)
+	class ColoredString(object):
+		def __init__(self):
+			self.chars = []
+		def __add__(self, char):
+			if isinstance(char, ColoredChar):
+				self.chars += [char]
+			elif isinstance(char, (list, tuple)):
+				for c in char:
+					self.__add__(c)
+			else:
+				raise TypeError("char must be of type ColoredChar")
 
-		ret += str(self.chars[0])
-		last_color = self.chars[0].color
+			return self
+		def __str__(self):
+			if not self.chars:
+				return ""
 
-		for char in self.chars[1:]:
-			color = char.color
-			if color != last_color:
-				if last_color != None:
-					ret += TAG_END()
-				if color != None:
-					ret += TAG_START(color)
-				last_color = color
-			ret += str(char)
-		if last_color != None:
-			ret += TAG_END()
+			ret = ""
+			if self.chars[0].color != None:
+				ret += TAG_START(self.chars[0].color)
 
-		return ret
+			ret += str(self.chars[0])
+			last_color = self.chars[0].color
 
-def colorify_trans3(char, ix, length, text):
-	colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF"]
-	return ColoredChar(colors[ix * len(colors) // length], char)
-def colorify_trans5(char, ix, length, text):
-	colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"]
-	return ColoredChar(colors[ix * len(colors) // length], char)
-def colorify_trans3_loop(char, ix, length, text):
-	colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF"]
-	return ColoredChar(colors[ix % len(colors)], char)
-def colorify_trans5_loop(char, ix, length, text):
-	colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8"]
-	return ColoredChar(colors[ix % len(colors)], char)
-def colorify_nonbinary(char, ix, length, text):
-	colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
-	return ColoredChar(colors[ix * len(colors) // length], char)
-def colorify_nb_loop(char, ix, length, text):
-	colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
-	return ColoredChar(colors[ix % len(colors)], char)
-def colorify_rgb(char, ix, length, text, hex):
-	return ColoredChar(hex, char)
+			for char in self.chars[1:]:
+				color = char.color
+				if color != last_color:
+					if last_color != None:
+						ret += TAG_END()
+					if color != None:
+						ret += TAG_START(color)
+					last_color = color
+				ret += str(char)
+			if last_color != None:
+				ret += TAG_END()
 
-def colorify_trans5_words(char, ix, length, text):
-	colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"]
-	return ColoredChar(colors[index_words(text[:ix]) * len(colors) // count_words(text)], char)
-def colorify_nb_words(char, ix, length, text):
-	colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
-	return ColoredChar(colors[index_words(text[:ix]) * len(colors) // count_words(text)], char)
+			return ret
 
-colors = {
-		"default": lambda char, ix, length, text: ColoredChar("#eeaaff", char),
-		"none": lambda char, ix, length, text: ColoredChar(None, char),
-		"trans": colorify_trans5,
-		"trans3": colorify_trans3,
-		"trans5": colorify_trans5,
-		"nonbinary": colorify_nonbinary,
-		"nb": colorify_nonbinary,
-		"trans3-loop": colorify_trans3_loop,
-		"trans5-loop": colorify_trans5_loop,
-		"nb-loop": colorify_nb_loop,
-		"trans5-words": colorify_trans5_words,
-		"nb-words": colorify_nb_words
-}
+	def colorify_trans3(char, ix, length, text):
+		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF"]
+		return ColoredChar(colors[ix * len(colors) // length], char)
+	def colorify_trans5(char, ix, length, text):
+		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"]
+		return ColoredChar(colors[ix * len(colors) // length], char)
+	def colorify_trans3_loop(char, ix, length, text):
+		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF"]
+		return ColoredChar(colors[ix % len(colors)], char)
+	def colorify_trans5_loop(char, ix, length, text):
+		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8"]
+		return ColoredChar(colors[ix % len(colors)], char)
+	def colorify_nonbinary(char, ix, length, text):
+		colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
+		return ColoredChar(colors[ix * len(colors) // length], char)
+	def colorify_nb_loop(char, ix, length, text):
+		colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
+		return ColoredChar(colors[ix % len(colors)], char)
+	def colorify_rgb(char, ix, length, text, hex):
+		return ColoredChar(hex, char)
 
-colorify = colors["default"]
+	def colorify_trans5_words(char, ix, length, text):
+		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"]
+		return ColoredChar(colors[index_words(text[:ix]) * len(colors) // count_words(text)], char)
+	def colorify_nb_words(char, ix, length, text):
+		colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
+		return ColoredChar(colors[index_words(text[:ix]) * len(colors) // count_words(text)], char)
 
-def dvm_agent():
-	global colorify
+	colors = {
+			"default": lambda char, ix, length, text: ColoredChar("#eeaaff", char),
+			"none": lambda char, ix, length, text: ColoredChar(None, char),
+			"trans": colorify_trans5,
+			"trans3": colorify_trans3,
+			"trans5": colorify_trans5,
+			"nonbinary": colorify_nonbinary,
+			"nb": colorify_nonbinary,
+			"trans3-loop": colorify_trans3_loop,
+			"trans5-loop": colorify_trans5_loop,
+			"nb-loop": colorify_nb_loop,
+			"trans5-words": colorify_trans5_words,
+			"nb-words": colorify_nb_words
+	}
+
+	colorify = colors["default"]
 
 	color = ""
 	if len(argv) >= 2:
@@ -168,6 +169,7 @@ def main():
 
 	if len(argv) > 2 and argv[1] == "--dvm-agent": # Tells the script that it's running in a disposable
 		global DATA
+		SecurityContext.is_dvm_agent = True
 		DATA = argv[2]
 		argv = argv[2:]
 		print(dvm_agent(), end="")
@@ -177,7 +179,7 @@ def main():
 		raise SystemExit
 
 	if AGENT_QUBE == "dom0":
-		raise ValueError("For security reasons, dom0 cannot be used as a colorification agent")
+		raise SecurityException("dom0 cannot be used as a colorification agent")
 
 	# Refer to /usr/lib/python3.11/site-packages/qui/clipboard.py
 	from qui.clipboard import pyinotify, qubesadmin, NotificationApp, DATA, Gtk, Gdk
@@ -206,4 +208,7 @@ def main():
 				clipboard.set_text(text, -1)
 
 if __name__ == "__main__":
-	main()
+	try:
+		main()
+	except SecurityException as e:
+		print_exc(e)
