@@ -134,6 +134,9 @@ def dvm_agent():
 	def colorify_nonbinary(char, ix, length, text):
 		colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
 		return ColoredChar(char, colors[ix * len(colors) // length])
+	def colorify_nb_bg(char, ix, length, text):
+		color = colorify_nonbinary(char, ix, length, text)
+		return ColoredChar(char, color.fg, "#000000")
 	def colorify_nb_loop(char, ix, length, text):
 		colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
 		return ColoredChar(char, colors[ix % len(colors)])
@@ -143,9 +146,15 @@ def dvm_agent():
 	def colorify_trans5_words(char, ix, length, text):
 		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"]
 		return ColoredChar(char, colors[index_words(text[:ix]) * len(colors) // count_words(text)])
+	def colorify_trans5_bg_words(char, ix, length, text):
+		color = colorify_trans5_words(char, ix, length, text)
+		return ColoredChar(char, color.fg, "#000000")
 	def colorify_nb_words(char, ix, length, text):
 		colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
 		return ColoredChar(char, colors[index_words(text[:ix]) * len(colors) // count_words(text)])
+	def colorify_nb_bg_words(char, ix, length, text):
+		color = colorify_nb_words(char, ix, length, text)
+		return ColoredChar(char, color.fg, "#000000")
 
 	colors = {
 			"default": lambda char, ix, length, text: ColoredChar(char, "#eeaaff"),
@@ -160,7 +169,10 @@ def dvm_agent():
 			"nb-loop": colorify_nb_loop,
 			"trans5-words": colorify_trans5_words,
 			"nb-words": colorify_nb_words,
-			"trans5-bg": colorify_trans5_bg
+			"trans5-bg": colorify_trans5_bg,
+			"nb-bg": colorify_nb_bg,
+			"trans5-bg-words": colorify_trans5_bg_words,
+			"nb-bg-words": colorify_nb_bg_words
 	}
 
 	colorify = colors["default"]
