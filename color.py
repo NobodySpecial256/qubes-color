@@ -141,7 +141,13 @@ def dvm_agent():
 		colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
 		return ColoredChar(char, colors[ix % len(colors)])
 	def colorify_rgb(char, ix, length, text, hex):
-		return ColoredChar(char, hex)
+		hex = hex.split(":")
+		fg = hex[0]
+		if len(hex) > 1:
+			bg = hex[1]
+		else:
+			bg = None
+		return ColoredChar(char, fg, bg)
 
 	def colorify_trans5_words(char, ix, length, text):
 		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"]
@@ -184,6 +190,8 @@ def dvm_agent():
 	if color not in ["default", ""]:
 		if color[0] in ["#"]:
 			colorify = lambda char, ix, length, text: colorify_rgb(char, ix, length, text, color)
+		elif color[0] in [":"]:
+			colorify = lambda char, ix, length, text: colorify_rgb(char, ix, length, text, color[1:])
 		else:
 			colorify = colors[color]
 
