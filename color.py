@@ -11,6 +11,9 @@ class SecurityException(Exception):
 
 class SecurityContext:
 	is_dvm_agent = False
+	
+class ExecutionContext:
+	debug = False
 
 # The name of the VM to use for processing. This should be a disposable VM, but technically it can be any VM you want, except dom0
 # It is not recommended to do processing in a trusted VM, since the global clipboard is an untrusted input
@@ -38,8 +41,18 @@ def dvm_agent():
 	# Modules which increase attack surface are only imported if running in a DVM agent
 	import re
 	from html import escape
-	
-	TAG_START = lambda color: "<span data-mx-color='%s' style='color: %s;'>" %(color, color)
+
+	def TAG_START(fg, bg):
+		if fg != None:
+			if bg != None:
+				return "<span data-mx-color='%s' data-mx-bg-color='%s' style='color: %s; background-color: %s;'>" %(fg, bg, fg, bg)
+			else:
+				return "<span data-mx-color='%s' style='color: %s;'>" %(fg, fg)
+		else:
+			if bg != None:
+				return "<span data-mx-bg-color='%s' style='background-color: %s;'>" %(bg, bg)
+			else:
+				return "<span>"
 	TAG_END = lambda: "</span>"
 
 	whitespace = r'\s+'
@@ -54,10 +67,11 @@ def dvm_agent():
 			return 0
 
 	class ColoredChar(object):
-		def __init__(self, color, char):
+		def __init__(self, char, fg = None, bg = None):
 			self.char = char
 			self.html = escape(char).encode("ascii", "xmlcharrefreplace").decode("ascii")
-			self.color = color
+			self.fg = fg
+			self.bg = bg
 		def __str__(self):
 			return self.html
 
@@ -79,57 +93,63 @@ def dvm_agent():
 				return ""
 
 			ret = ""
-			if self.chars[0].color != None:
-				ret += TAG_START(self.chars[0].color)
+			if self.chars[0].fg != None or self.chars[0].bg != None:
+				ret += TAG_START(self.chars[0].fg, self.chars[0].bg)
 
 			ret += str(self.chars[0])
-			last_color = self.chars[0].color
+			last_fg = self.chars[0].fg
+			last_bg = self.chars[0].bg
 
 			for char in self.chars[1:]:
-				color = char.color
-				if color != last_color:
-					if last_color != None:
+				fg = char.fg
+				bg = char.bg
+				if fg != last_fg or bg != last_bg:
+					if last_fg != None or last_bg != None:
 						ret += TAG_END()
-					if color != None:
-						ret += TAG_START(color)
-					last_color = color
+					if fg != None or bg != None:
+						ret += TAG_START(fg, bg)
+					last_fg = fg
+					last_bg = bg
 				ret += str(char)
-			if last_color != None:
+			if last_fg != None:
 				ret += TAG_END()
 
 			return ret
 
 	def colorify_trans3(char, ix, length, text):
 		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF"]
-		return ColoredChar(colors[ix * len(colors) // length], char)
+		return ColoredChar(char, colors[ix * len(colors) // length])
 	def colorify_trans5(char, ix, length, text):
 		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"]
-		return ColoredChar(colors[ix * len(colors) // length], char)
+		return ColoredChar(char, colors[ix * len(colors) // length])
+	def colorify_trans5_bg(char, ix, length, text):
+		color = colorify_trans5(char, ix, length, text)
+		return ColoredChar(char, color.fg, "#000000")
 	def colorify_trans3_loop(char, ix, length, text):
 		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF"]
-		return ColoredChar(colors[ix % len(colors)], char)
+		return ColoredChar(char, colors[ix % len(colors)])
 	def colorify_trans5_loop(char, ix, length, text):
 		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8"]
-		return ColoredChar(colors[ix % len(colors)], char)
+		return ColoredChar(char, colors[ix % len(colors)])
 	def colorify_nonbinary(char, ix, length, text):
 		colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
-		return ColoredChar(colors[ix * len(colors) // length], char)
+		return ColoredChar(char, colors[ix * len(colors) // length])
 	def colorify_nb_loop(char, ix, length, text):
 		colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
-		return ColoredChar(colors[ix % len(colors)], char)
+		return ColoredChar(char, colors[ix % len(colors)])
 	def colorify_rgb(char, ix, length, text, hex):
-		return ColoredChar(hex, char)
+		return ColoredChar(char, hex)
 
 	def colorify_trans5_words(char, ix, length, text):
 		colors = ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"]
-		return ColoredChar(colors[index_words(text[:ix]) * len(colors) // count_words(text)], char)
+		return ColoredChar(char, colors[index_words(text[:ix]) * len(colors) // count_words(text)])
 	def colorify_nb_words(char, ix, length, text):
 		colors = ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"]
-		return ColoredChar(colors[index_words(text[:ix]) * len(colors) // count_words(text)], char)
+		return ColoredChar(char, colors[index_words(text[:ix]) * len(colors) // count_words(text)])
 
 	colors = {
-			"default": lambda char, ix, length, text: ColoredChar("#eeaaff", char),
-			"none": lambda char, ix, length, text: ColoredChar(None, char),
+			"default": lambda char, ix, length, text: ColoredChar(char, "#eeaaff"),
+			"none": lambda char, ix, length, text: ColoredChar(char),
 			"trans": colorify_trans5,
 			"trans3": colorify_trans3,
 			"trans5": colorify_trans5,
@@ -139,7 +159,8 @@ def dvm_agent():
 			"trans5-loop": colorify_trans5_loop,
 			"nb-loop": colorify_nb_loop,
 			"trans5-words": colorify_trans5_words,
-			"nb-words": colorify_nb_words
+			"nb-words": colorify_nb_words,
+			"trans5-bg": colorify_trans5_bg
 	}
 
 	colorify = colors["default"]
@@ -196,10 +217,21 @@ def main():
 		with open(DATA, 'rb') as contents:
 			global_bin = contents.read()
 
-			run(["/usr/bin/qvm-run", "-u", "root", "--pass-io", AGENT_QUBE, "tee", argv[0]], input=prgm_bin, capture_output=True)
-			run(["/usr/bin/qvm-run", "-u", "root", "--pass-io", AGENT_QUBE, "tee", DATA], input=global_bin, capture_output=True)
+			a = run(["/usr/bin/qvm-run", "-u", "root", "--pass-io", AGENT_QUBE, "tee", argv[0]], input=prgm_bin, capture_output=True)
+			b = run(["/usr/bin/qvm-run", "-u", "root", "--pass-io", AGENT_QUBE, "tee", DATA], input=global_bin, capture_output=True)
 
-			colored = clean_str(run(["/usr/bin/qvm-run", "--pass-io", AGENT_QUBE, "python3", argv[0], "--dvm-agent", DATA] + argv[1:], capture_output=True).stdout.decode(encoding="ascii", errors="replace"))
+			if ExecutionContext.debug:
+				print(clean_str(a.stdout.decode(encoding="ascii", errors="replace")))
+				print(clean_str(a.stderr.decode(encoding="ascii", errors="replace")))
+
+				print(clean_str(b.stdout.decode(encoding="ascii", errors="replace")))
+				print(clean_str(b.stderr.decode(encoding="ascii", errors="replace")))
+
+			c = run(["/usr/bin/qvm-run", "--pass-io", AGENT_QUBE, "python3", argv[0], "--dvm-agent", DATA] + argv[1:], capture_output=True)
+			colored = clean_str(c.stdout.decode(encoding="ascii", errors="replace"))
+			
+			if ExecutionContext.debug:
+				print(clean_str(c.stderr.decode(encoding="ascii", errors="replace")))
 
 			clipboard.set_text(colored, -1)
 			gtk_app.copy_dom0_clipboard()
